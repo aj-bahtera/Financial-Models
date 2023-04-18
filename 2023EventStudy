@@ -1,0 +1,238 @@
+import math
+import pandas as pd
+import numpy as np
+from numpy import matrix
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+import datetime
+from scipy import stats
+from scipy.stats import linregress
+from scipy.stats import t
+import xlrd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import operator
+
+
+df = pd.read_csv (r'D:\Coding\Python\DCF\GIAA.csv', header=0, sep=",")
+df = df.loc[:, ['Date_s', 'Date_m','AdjClose_s','AdjClose_m']]
+ab = list(set(df.Date_s).symmetric_difference(set(df.Date_m)))
+df = df[df.Date_s.isin(ab) == False]
+df = df[df.Date_m.isin(ab) == False]
+y = df["return_s"] = df.AdjClose_s.pct_change(1)
+x = df["return_m"] = df.AdjClose_m.pct_change(1)
+df.drop(index=df.index[0], axis=0, inplace=True)
+
+#input data manually
+ad = ["6/3/2021","6/17/2021"]
+p_value = 0.2
+
+#make list based on announcement dates
+nam = {name: [] for name in ad}
+
+for element in ad:
+    h0 = df.loc[df["Date_s"] == element, "return_s"].index
+    h0 = h0[0]
+    r = range(h0-6,h0+5)
+    for n in r:
+       nam[element].append(df.iloc[n,4])
+
+nam2 = {name: [] for name in ad}
+
+for element in ad:
+    h0 = df.loc[df["Date_s"] == element, "return_m"].index
+    h0 = h0[0]
+    r = range(h0-6,h0+5)
+    for n in r:
+       nam2[element].append(df.iloc[n,4])
+
+
+
+#extract value from dictionary and put ut in the list
+for key1, value1 in nam.items():
+    for key2, value2 in nam2.items():
+        if key1 == key2:
+            a = 1
+
+slope = [0.499885988,0.858572078]
+intercept = [-0.006325178,-0.007514622]
+
+nam3 = {name: [] for name in ad}
+nam4 = {name: [] for name in ad}
+
+for i, element in enumerate(slope):
+    s = slope[i]
+    i = intercept[i]
+
+for s, i, key in zip(slope,intercept,nam2):
+    result = [item * s + i for item in nam2[key]]
+    nam3[key].append(result)
+
+nam4 = {}
+
+for element in ad:
+    for key1,key2 in zip(nam,nam3):
+        list1 = nam[key1]
+        list2 = nam3[key2]
+        list1 = matrix(list1)
+        list2 = matrix(list2)
+        ret = list1 - list2
+        ret = ret.tolist()
+        ret = ret[0]
+        nam4[key1] = ret
+
+
+r = range(len(nam4[ad[0]]))
+
+#for n in r:
+#    empty = []
+#    for key in nam4:
+#        first_value = nam4[key][n]
+#        product *= first_value
+#        print(product)
+
+
+num = len(ad)
+sqr = math.sqrt(num)
+t_val = []
+t_inv = abs(stats.t.ppf(1-(p_value/2), num-1))
+
+for n in r:
+    mean = sum(nam4[key][n] for key in nam4) / len(nam4)
+    variance = sum((nam4[key][n] - mean) ** 2 for key in nam4) / (len(nam4) - 1)
+    std_dev = math.sqrt(variance)
+    s = std_dev/sqr
+    t = mean/s
+    t_val.append(t)
+
+non_sig = []
+
+print(f"Here are the t-values: {t_val}")
+
+for element in t_val:
+    if element > t_inv:
+        print(f"Here are the t values that are within the reject area: {element}")
+
+no = {name: [] for name in ad}
+name = ["h","MR","ER","AR"]
+row_names = []
+
+
+for x in name:
+    for element in range(-5,6):
+        title = f"{x}{element}"
+        row_names.append(title)
+
+col_nam = ['row_names','t_val','rejection']
+
+for element in ad:
+    col_nam.insert(1,element)
+
+
+df_ex = pd.DataFrame()
+df_ex[col_nam] = pd.DataFrame(columns=col_nam)
+df_ex["row_names"] = row_names
+
+for element in ad:
+    list = nam3[element]
+    list = list[0]
+    nam3[element] = list
+
+ex_dict = {name: [] for name in ad}
+dict = [nam,nam2,nam3,nam4]
+
+for element in ad:
+    for n in dict:
+        list = n[element]
+        ex_dict[element].append(list)
+
+for element in ad:
+    list = ex_dict[element]
+    list = list[0]
+    ex_dict[element] = list
+
+empt_df = pd.DataFrame.from_dict(nam)
+empt_df2 = pd.DataFrame.from_dict(nam2)
+empt_df3 = pd.DataFrame.from_dict(nam3)
+empt_df4 = pd.DataFrame.from_dict(nam4)
+
+list_df = [empt_df,empt_df2,empt_df3,empt_df4]
+    #df_ex = df_ex.append(pd.DataFrame({'User': xList}), ignore_index=True)
+
+result = pd.concat([empt_df, empt_df2], axis=0)
+result = pd.concat([result,empt_df3], axis=0)
+result = pd.concat([result,empt_df4], axis=0)
+
+
+for element in ad:
+    df_ex[element] = result[element].values
+
+
+for element in t_val:
+    index = t_val.index(element)
+    df_ex.loc[index, 't_val'] = element
+
+rejection = []
+
+for element in t_val:
+    if element > t_inv:
+        rejection.append("do not reject")
+    else:
+        rejection.append("reject")
+
+df_ex['rejection'] = pd.Series(rejection)
+
+print(df_ex)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#for element in ad:
+#    df_ex = df_ex.assign(element=)
+
+#df = pd.DataFrame([ad])
+#print(df)
+
+
+
+
+
+
+
+
+
+
+
+
+
+    #print(std_dev)
